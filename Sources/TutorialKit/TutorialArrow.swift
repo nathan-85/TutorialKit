@@ -36,6 +36,13 @@ public struct TutorialArrow {
     public let textAlignment: LayoutPair<TextAlignment>
     public let bend: ArrowBend
     public let bendStrength: ArrowBendStrength
+    /// Opacity of the arrow stroke (0–1). Does not affect the text label.
+    public let arrowOpacity: CGFloat
+    /// Optional SF Symbol name. When set, renders the icon at the anchor point
+    /// instead of the arrow line and text label.
+    public let icon: String?
+    /// Point offset applied to the resolved anchor position.
+    public let anchorOffset: LayoutPair<CGPoint>
 
     public init(
         _ element: TutorialElement,
@@ -45,7 +52,10 @@ public struct TutorialArrow {
         angle: CGFloat? = nil,                 angleH: CGFloat? = nil,
         textAlignment: TextAlignment = .center, textAlignmentH: TextAlignment? = nil,
         bend: ArrowBend = .auto,
-        bendStrength: ArrowBendStrength = .medium
+        bendStrength: ArrowBendStrength = .medium,
+        arrowOpacity: CGFloat = 1.0,
+        icon: String? = nil,
+        anchorOffset: CGPoint = .zero,         anchorOffsetH: CGPoint? = nil
     ) {
         self.element = element
 
@@ -67,6 +77,16 @@ public struct TutorialArrow {
         self.textAlignment = LayoutPair(v: textAlignment, h: textAlignmentH ?? textAlignment)
         self.bend = bend
         self.bendStrength = bendStrength
+        self.arrowOpacity = arrowOpacity
+        self.icon = icon
+        self.anchorOffset = LayoutPair(v: anchorOffset, h: anchorOffsetH ?? anchorOffset)
+    }
+
+    /// Resolves the anchor point in the given frame, applying ``anchorOffset``.
+    public func resolvedAnchorPoint(in frame: CGRect, isLandscape: Bool) -> CGPoint {
+        let base = anchor.resolved(isLandscape).point(in: frame)
+        let off = anchorOffset.resolved(isLandscape)
+        return CGPoint(x: base.x + off.x, y: base.y + off.y)
     }
 
     /// The point where the arrow tail meets the label — exactly ``length`` from the element anchor.
@@ -101,10 +121,10 @@ public struct TutorialArrow {
     public func labelCenter(anchorPoint: CGPoint, labelSize: CGSize, isLandscape: Bool) -> CGPoint {
         let start = arrowStart(anchorPoint: anchorPoint, isLandscape: isLandscape)
         let centeredRect = CGRect(x: -labelSize.width / 2, y: -labelSize.height / 2, width: labelSize.width, height: labelSize.height)
-        let anchorOffset = fromAnchor.resolved(isLandscape).point(in: centeredRect)
+        let fromPoint = fromAnchor.resolved(isLandscape).point(in: centeredRect)
         return CGPoint(
-            x: start.x - anchorOffset.x,
-            y: start.y - anchorOffset.y
+            x: start.x - fromPoint.x,
+            y: start.y - fromPoint.y
         )
     }
 }

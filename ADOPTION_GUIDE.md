@@ -4,17 +4,31 @@ A lightweight SwiftUI framework for building guided tutorials with animated arro
 
 ## Overview
 
-TutorialKit provides five building blocks that work together through the SwiftUI environment:
+Define your tutorial steps, then attach them with a single modifier:
+
+```swift
+struct MySteps: TutorialStepProvider {
+    static var steps: [TutorialStep] { [
+        TutorialStep(title: "Welcome", body: "Let's take a tour."),
+    ] }
+}
+
+ContentView()
+    .tutorial(DefaultTutorialOverlay<MySteps>.self, isPresented: $showTutorial)
+```
+
+The modifier handles environment injection, frame collection, step management, and overlay presentation. Your app defines the elements, blur regions, and tutorial steps; TutorialKit handles the wiring and rendering.
+
+Under the hood, these building blocks work together through the SwiftUI environment:
 
 | Tool | Purpose |
 |------|---------|
+| `.tutorial(_:isPresented:onComplete:)` | Attaches a tutorial overlay with full automatic wiring |
 | `.captureTutorialFrame(_:)` | Marks a view as a tutorial target |
 | `.tutorialBlur(_:)` | Blurs a view when a tutorial step requires it |
 | `.tutorialTriggered(_:isPresented:)` | Opens/closes a popover or sheet during a tutorial step |
+| `.tutorialAction(_:perform:)` | Runs a callback when a trigger activates/deactivates |
 | `.tutorialOverlay()` | Draws arrows inside presented views (popovers, sheets) |
-| `TutorialArrowShape` | The arrow shape, for use in custom overlay views |
-
-Your app defines what the elements, blur regions, and tutorial steps are. TutorialKit handles the rendering, layout, and coordination.
 
 ---
 
@@ -102,40 +116,99 @@ SomeView()
     .tutorialTriggered("showSettings", isPresented: $showSettings)
 ```
 
-## Step 5 — Define Tutorial Steps
-
-Build your tutorial as an array of `TutorialStep` values:
+Use `.tutorialAction(_:perform:)` for side effects — starting/stopping animations, timers, or other app-state changes during a step:
 
 ```swift
-let tutorialSteps: [TutorialStep] = [
-    TutorialStep(
-        title: "Welcome",
-        body: "Let's take a quick tour.",
-        blurTargets: [.map, .instrument]
-    ),
-    TutorialStep(
-        title: "Map View",
-        body: "Drag to pan, pinch to zoom.",
-        arrows: [
-            TutorialArrow(.mapView, anchor: .leading, fromAnchor: .trailing),
-            TutorialArrow(.speedButton, anchor: .topTrailing),
-            TutorialArrow(.windButton, anchor: .leading),
-        ],
-        blurTargets: [.instrument]
-    ),
-    TutorialStep(
-        title: "Settings",
-        body: "Configure your preferences.",
-        arrows: [
-            TutorialArrow(.settingsButton, anchor: .bottom, fromAnchor: .top),
-        ],
-        blurTargets: [.map],
-        supplementalArrows: [
-            TutorialArrow(.aircraftPicker, anchor: .top, length: 25),
-        ],
-        triggers: ["showSettings"]
-    ),
-]
+InstrumentView()
+    .tutorialAction("animateHeadingBug") { isActive in
+        if isActive {
+            startHeadingBugDemo()   // e.g. start a timer that rotates the bug
+        } else {
+            stopHeadingBugDemo()
+        }
+    }
+```
+
+The action fires once when the trigger activates and once when it deactivates (step change or tutorial end).
+
+## Step 5 — Define Tutorial Steps
+
+Build your tutorial as a `TutorialStepProvider`:
+
+```swift
+struct MyTutorialSteps: TutorialStepProvider {
+    static var steps: [TutorialStep] { [
+        TutorialStep(
+            title: "Welcome",
+            body: "Let's take a quick tour.",
+            blurTargets: [.map, .instrument]
+        ),
+        TutorialStep(
+            title: "Map View",
+            body: "Drag to pan, pinch to zoom.",
+            arrows: [
+                TutorialArrow(.mapView, anchor: .leading, fromAnchor: .trailing),
+                TutorialArrow(.speedButton, anchor: .topTrailing),
+                TutorialArrow(.windButton, anchor: .leading),
+            ],
+            blurTargets: [.instrument]
+        ),
+        TutorialStep(
+            title: "Settings",
+            body: "Configure your preferences.",
+            arrows: [
+                TutorialArrow(.settingsButton, anchor: .bottom, fromAnchor: .top),
+            ],
+            blurTargets: [.map],
+            supplementalArrows: [
+                TutorialArrow(.aircraftPicker, anchor: .top, length: 25),
+            ],
+            triggers: ["showSettings"]
+        ),
+    ] }
+}
+```
+
+### Custom Card Content
+
+For steps that need custom buttons or layout (e.g. an upsell or a final "done" step), use `centered` and `cardContent`. The closure receives a `TutorialActions` value with `advance` and `dismiss` methods:
+
+```swift
+TutorialStep(
+    title: "You're All Set!",
+    body: "Ready to go.",
+    blurTargets: [.map, .instrument],
+    centered: true,
+    cardContent: { actions in
+        AnyView(
+            VStack(spacing: 12) {
+                Text("Enjoy the app!")
+                    .foregroundColor(.white.opacity(0.85))
+
+                Button("Let's Go") { actions.dismiss() }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(Color.green)
+                    .clipShape(Capsule())
+            }
+        )
+    }
+)
+```
+
+When `cardContent` is `nil` (the default), `DefaultTutorialOverlay` renders the body text with Skip/Next buttons automatically.
+
+### Tags
+
+Use `tags` for app-specific metadata that doesn't affect TutorialKit's rendering:
+
+```swift
+TutorialStep(
+    title: "Unlock Pro",
+    body: "...",
+    tags: ["upsell"],
+    // ...
+)
 ```
 
 ### Arrow Parameters
@@ -151,9 +224,123 @@ let tutorialSteps: [TutorialStep] = [
 
 Add an `H` suffix for landscape-specific overrides: `anchorH`, `fromAnchorH`, `lengthH`, `angleH`, `textAlignmentH`.
 
-## Step 6 — Inject the Environment
+## Step 6 — Attach the Tutorial
 
-At the root of your view hierarchy, compute the current step's values and inject them:
+One modifier does everything:
+
+```swift
+struct ContentView: View {
+    @State private var showTutorial = false
+
+    var body: some View {
+        MainContent()
+            .tutorial(DefaultTutorialOverlay<MyTutorialSteps>.self, isPresented: $showTutorial) {
+                print("Tutorial complete!")
+            }
+    }
+}
+```
+
+`DefaultTutorialOverlay` renders the overlay background, animated arrows with collision-resolved labels, and a card with your step content. For standard steps it provides Skip/Next navigation automatically.
+
+The `.tutorial()` modifier:
+- Injects `activeTutorialBlurTargets`, `activeTutorialTriggers`, and `activeSupplementalArrows` into the environment
+- Collects element frames via `TutorialFramePreferenceKey`
+- Manages the step index (resets to 0 on each presentation)
+- Presents and dismisses the overlay
+- Calls `onComplete` when the tutorial ends
+
+When `isPresented` is `false`, all environment values return to their defaults and every modifier deactivates automatically.
+
+---
+
+## Advanced: Custom Overlay View
+
+If `DefaultTutorialOverlay` doesn't fit your needs, you can build a fully custom overlay by conforming to `TutorialOverlay` directly. You still get all the environment wiring from the `.tutorial()` modifier — you just control the rendering yourself.
+
+TutorialKit provides reusable building blocks you can compose in your custom overlay:
+
+| Component | Purpose |
+|-----------|---------|
+| `TutorialArrowLayer` | Renders arrows with labels, staggered animation, and collision resolution. |
+| `TutorialCard` | Dark card chrome with title, rounded corners, and a content slot. |
+| `TutorialCardPlacement` | Computes card position opposite the centroid of arrow targets. |
+| `TutorialCardSizeKey` | Preference key for measuring rendered card size. |
+| `TutorialArrowShape` | The raw arrow `Shape`, for fully custom drawing. |
+| `ResolvedLabel` | Label with computed position. Use `resolveOverlaps` to prevent collisions. |
+
+```swift
+struct MyCustomOverlay: TutorialOverlay {
+    @Binding var stepIndex: Int
+    let frames: [TutorialElement: CGRect]
+    let dismiss: () -> Void
+
+    static var steps: [TutorialStep] { MyTutorialSteps.steps }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let origin = proxy.frame(in: .global).origin
+            let container = CGRect(origin: .zero, size: proxy.size)
+            let localFrames = frames.mapValues { rect in
+                CGRect(
+                    x: rect.minX - origin.x, y: rect.minY - origin.y,
+                    width: rect.width, height: rect.height
+                )
+            }
+            let step = Self.steps[stepIndex]
+
+            ZStack {
+                Color.black.opacity(0.35).ignoresSafeArea()
+
+                // Use the built-in arrow layer...
+                TutorialArrowLayer(
+                    arrows: step.arrows,
+                    frames: localFrames,
+                    cardRect: /* your card rect */,
+                    isLandscape: container.width > container.height,
+                    stepIndex: stepIndex
+                )
+
+                // ...or draw arrows manually with TutorialArrowShape
+                // ...with your own card design
+            }
+        }
+    }
+}
+```
+
+### Custom Step Types
+
+If `TutorialStep` doesn't have enough fields for your custom overlay, define a type conforming to `TutorialStepProviding`:
+
+```swift
+struct MyCustomStep: TutorialStepProviding {
+    let title: String
+    let body: String
+    let arrows: [TutorialArrow]
+    let blurTargets: TutorialBlurTargets
+    var supplementalArrows: [TutorialArrow] = []
+    var triggers: [String] = []
+
+    // Your extra fields:
+    var showConfetti: Bool = false
+}
+
+struct MyOverlay: TutorialOverlay {
+    @Binding var stepIndex: Int
+    let frames: [TutorialElement: CGRect]
+    let dismiss: () -> Void
+
+    // Associated type inferred as MyCustomStep
+    static var steps: [MyCustomStep] { /* ... */ }
+
+    var body: some View { /* ... */ }
+}
+```
+
+### Manual Environment Injection
+
+If you need more control than the `.tutorial()` modifier provides, you can inject the environment values yourself:
 
 ```swift
 struct ContentView: View {
@@ -165,7 +352,7 @@ struct ContentView: View {
             MainContent()
 
             if showTutorial {
-                TutorialOverlayView(
+                MyOverlayView(
                     steps: tutorialSteps,
                     stepIndex: $stepIndex,
                     onComplete: { showTutorial = false }
@@ -194,108 +381,6 @@ struct ContentView: View {
 }
 ```
 
-When `showTutorial` is `false` or the step has no active targets, every modifier returns to its default (no blur, no triggers, no arrows). This makes the system fully self-regulating.
-
-## Step 7 — Build Your Overlay View
-
-TutorialKit provides the building blocks; you build the overlay that shows the tutorial card, buttons, and primary arrows. A minimal example:
-
-```swift
-import TutorialKit
-
-struct TutorialOverlayView: View {
-    let steps: [TutorialStep]
-    @Binding var stepIndex: Int
-    let onComplete: () -> Void
-
-    // Collect element frames via preference key
-    @State private var frames: [TutorialElement: CGRect] = [:]
-
-    var body: some View {
-        GeometryReader { proxy in
-            let origin = proxy.frame(in: .global).origin
-            let localFrames = frames.mapValues { rect in
-                CGRect(
-                    x: rect.minX - origin.x,
-                    y: rect.minY - origin.y,
-                    width: rect.width,
-                    height: rect.height
-                )
-            }
-            let step = steps[stepIndex]
-            let isLandscape = proxy.size.width > proxy.size.height
-
-            ZStack {
-                // Dim background
-                Color.black.opacity(0.35)
-                    .ignoresSafeArea()
-
-                // Draw arrows for the current step
-                ForEach(Array(step.arrows.dropFirst().enumerated()), id: \.offset) { _, arrow in
-                    if let targetFrame = localFrames[arrow.element] {
-                        let anchorPt = arrow.anchor.resolved(isLandscape).point(in: targetFrame)
-                        let labelSize = CGSize(width: 80, height: 24)
-                        let labelCenter = arrow.labelCenter(
-                            anchorPoint: anchorPt,
-                            labelSize: labelSize,
-                            isLandscape: isLandscape
-                        )
-                        let start = arrow.fromAnchor.resolved(isLandscape).point(
-                            in: CGRect(
-                                x: labelCenter.x - labelSize.width / 2,
-                                y: labelCenter.y - labelSize.height / 2,
-                                width: labelSize.width,
-                                height: labelSize.height
-                            ).insetBy(dx: 3, dy: 2)
-                        )
-
-                        TutorialArrowShape(
-                            start: start,
-                            end: anchorPt,
-                            curvature: arrow.curvature(
-                                start: start,
-                                end: anchorPt,
-                                isLandscape: isLandscape
-                            )
-                        )
-                        .stroke(Color.white.opacity(0.85), lineWidth: 1.5)
-
-                        Text(arrow.element.label)
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(.white)
-                            .position(labelCenter)
-                    }
-                }
-
-                // Tutorial card
-                VStack(spacing: 12) {
-                    Text(step.title).font(.headline).foregroundColor(.white)
-                    Text(step.body).font(.subheadline).foregroundColor(.white.opacity(0.85))
-                    HStack {
-                        Button("Skip") { onComplete() }
-                        Spacer()
-                        Button("Next") {
-                            if stepIndex < steps.count - 1 {
-                                stepIndex += 1
-                            } else {
-                                onComplete()
-                            }
-                        }
-                    }
-                }
-                .padding()
-                .background(Color(white: 0.1))
-                .cornerRadius(16)
-                .frame(maxWidth: 280)
-            }
-        }
-        .onPreferenceChange(TutorialFramePreferenceKey.self) { frames = $0 }
-    }
-}
-```
-
-Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quality label placement that avoids overlapping labels. See the HSI app's `FirstFlightOverlayView` for a full reference implementation.
-
 ---
 
 ## Architecture
@@ -303,9 +388,7 @@ Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quali
 ```
 ┌───────────────────────────────────────────────────┐
 │  Root View                                         │
-│  .environment(\.activeTutorialBlurTargets, ...)    │
-│  .environment(\.activeTutorialTriggers, ...)       │
-│  .environment(\.activeSupplementalArrows, ...)     │
+│  .tutorial(DefaultTutorialOverlay<S>.self, ...)    │
 │                                                    │
 │  ┌─────────────┐   ┌───────────────────────────┐  │
 │  │ Panel A     │   │ Panel B                    │  │
@@ -322,16 +405,17 @@ Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quali
 │                    └───────────────────────────┘  │
 │                                                    │
 │  ┌─────────────────────────────────────────────┐  │
-│  │ TutorialOverlayView (your custom view)      │  │
-│  │ Reads frames via TutorialFramePreferenceKey  │  │
-│  │ Draws primary arrows + card + buttons        │  │
+│  │ DefaultTutorialOverlay (or custom overlay)  │  │
+│  │ ├─ TutorialArrowLayer (arrows + labels)     │  │
+│  │ ├─ TutorialCard (title + content)           │  │
+│  │ └─ TutorialCardPlacement (positioning)      │  │
 │  └─────────────────────────────────────────────┘  │
 └───────────────────────────────────────────────────┘
 ```
 
 ### Data Flow
 
-1. **Frame capture**: `.captureTutorialFrame()` reports each element's global frame via a `PreferenceKey`. The overlay view collects these to know where to draw arrows.
+1. **Frame capture**: `.captureTutorialFrame()` reports each element's global frame via a `PreferenceKey`. The overlay view receives these frames from the modifier.
 
 2. **Blur**: `.tutorialBlur(.map)` reads `activeTutorialBlurTargets` from the environment. When `.map` is in the active set, the view blurs. When removed, it clears instantly.
 
@@ -350,6 +434,14 @@ Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quali
 
 ## API Reference
 
+### Protocols
+
+| Protocol | Description |
+|----------|-------------|
+| `TutorialStepProviding` | Exposes `blurTargets`, `triggers`, and `supplementalArrows` for environment injection. |
+| `TutorialStepProvider` | Provides `static var steps: [TutorialStep]` for use with `DefaultTutorialOverlay`. |
+| `TutorialOverlay` | A `View` with `static var steps` and a standard init. Enables the `.tutorial()` modifier. |
+
 ### Types
 
 | Type | Description |
@@ -358,7 +450,13 @@ Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quali
 | `TutorialBlurTargets` | `OptionSet` identifying blurrable UI regions. |
 | `TutorialArrow` | Describes an arrow: target element, anchors, length, angle, bend. |
 | `TutorialArrowShape` | A SwiftUI `Shape` that draws a curved arrow with arrowhead. |
-| `TutorialStep` | A tutorial step: title, body, arrows, blur targets, triggers. |
+| `TutorialStep` | A tutorial step: title, body, arrows, blur targets, triggers, tags, centered, cardContent. Conforms to `TutorialStepProviding`. |
+| `TutorialActions` | Advance and dismiss closures passed to custom `cardContent`. |
+| `DefaultTutorialOverlay` | Ready-to-use overlay with arrows, card, and Skip/Next navigation. Generic over a `TutorialStepProvider`. |
+| `TutorialArrowLayer` | Renders arrows with labels, staggered animation, and collision resolution. |
+| `TutorialCard` | Dark card chrome with title and a `@ViewBuilder` content slot. |
+| `TutorialCardPlacement` | Computes card position opposite the centroid of arrow targets. |
+| `TutorialCardSizeKey` | Preference key for measuring rendered card size. |
 | `ResolvedLabel` | A label with computed position. Use `resolveOverlaps` to prevent collisions. |
 | `LayoutPair<T>` | Holds portrait and landscape variants of a value. |
 | `ElementAnchor` | Edge/corner positions on a rect (`.top`, `.bottomLeading`, `.alongTop(0.3)`, etc.). |
@@ -367,9 +465,11 @@ Use `ResolvedLabel` and `ResolvedLabel.resolveOverlaps(_:)` for production-quali
 
 | Modifier | Description |
 |----------|-------------|
+| `.tutorial(_:isPresented:onComplete:)` | Attaches a `TutorialOverlay` with full automatic wiring. |
 | `.captureTutorialFrame(_:)` | Reports the view's frame for arrow targeting. |
 | `.tutorialBlur(_:)` | Applies blur when the target is in the active set. |
 | `.tutorialTriggered(_:isPresented:)` | Binds a presentation to a tutorial trigger string. |
+| `.tutorialAction(_:perform:)` | Runs a callback when a trigger activates or deactivates. |
 | `.tutorialOverlay()` | Draws supplemental arrows inside the modified view. |
 
 ### Environment Values

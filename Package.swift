@@ -1,5 +1,6 @@
 // swift-tools-version: 5.9
 
+#if canImport(PackageDescription)
 import PackageDescription
 
 let package = Package(
@@ -12,3 +13,4 @@ let package = Package(
         .target(name: "TutorialKit"),
     ]
 )
+#endif
