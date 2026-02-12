@@ -30,17 +30,23 @@ public struct TutorialCard<Content: View>: View {
     }
 
     public var body: some View {
-        VStack(alignment: centered ? .center : .leading, spacing: 12) {
-            Text(title)
-                .font(.system(size: centered ? 22 : 18, weight: .bold))
-                .foregroundColor(.white)
-                .multilineTextAlignment(centered ? .center : .leading)
-
-            content
+        Group {
+            if !title.isEmpty {
+                VStack(alignment: centered ? .center : .leading, spacing: 12) {
+                    Text(title)
+                        .font(.system(size: centered ? 22 : 18, weight: .bold))
+                        .foregroundColor(.white)
+                        .multilineTextAlignment(centered ? .center : .leading)
+                    content
+                }
+            } else {
+                content
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
-        .frame(maxWidth: centered ? 320 : 280, alignment: centered ? .center : .leading)
+        .frame(minWidth: 0, maxWidth: title.isEmpty ? nil : (centered ? 320 : 280), alignment: centered ? .center : .leading)
+        .fixedSize(horizontal: title.isEmpty, vertical: false)
         .background(Color(red: 0.1, green: 0.11, blue: 0.14))
         .mask(
             RoundedRectangle(cornerRadius: 18, style: .continuous)

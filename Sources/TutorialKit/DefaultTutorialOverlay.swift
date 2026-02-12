@@ -53,11 +53,17 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                 )
             }
             let step = currentStep
-            let cardCenter = TutorialCardPlacement.position(
-                for: step.arrows,
-                in: localFrames,
-                container: container
-            )
+            let isLandscape = container.width > container.height
+            let resolvedPosition = isLandscape ? (step.landscapePosition ?? step.position) : step.position
+            let cardCenter: CGPoint = if let pos = resolvedPosition {
+                CGPoint(x: container.width * pos.width, y: container.height * pos.height)
+            } else {
+                TutorialCardPlacement.position(
+                    for: step.arrows,
+                    in: localFrames,
+                    container: container
+                )
+            }
             let cardRect = CGRect(
                 x: cardCenter.x - cardSize.width / 2,
                 y: cardCenter.y - cardSize.height / 2,
@@ -66,14 +72,15 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
             )
 
             ZStack {
-                Color.black.opacity(0.35)
+                // No global dimming layer; app teams can control focus using `.tutorialBlur(...)`.
+                Color.clear
                     .ignoresSafeArea()
 
                 TutorialArrowLayer(
                     arrows: step.arrows,
                     frames: localFrames,
                     cardRect: cardRect,
-                    isLandscape: container.width > container.height,
+                    isLandscape: isLandscape,
                     stepIndex: stepIndex
                 )
                 .id(stepIndex)
@@ -109,10 +116,10 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
         return steps[0]
     }
 
-    private func cardView(for step: TutorialStep) -> some View {
+    private func cardView(for step: TutorialStep) -> AnyView {
         let actions = TutorialActions(advance: advance, dismiss: finish)
 
-        return TutorialCard(title: step.title, centered: step.centered) {
+        var card = AnyView(TutorialCard(title: step.title, centered: step.centered) {
             if let customContent = step.cardContent {
                 customContent(actions)
             } else {
@@ -143,7 +150,8 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                     .accessibilityIdentifier("TutorialNextButton")
                 }
             }
-        }
+        })
+        return card
     }
 
     private func advance() {

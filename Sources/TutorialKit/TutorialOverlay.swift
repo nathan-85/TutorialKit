@@ -95,6 +95,7 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
+            .environment(\.isTutorialActive, isPresented)
             .environment(\.activeTutorialBlurTargets, currentStep?.blurTargets ?? [])
             .environment(\.activeTutorialTriggers, currentStep.map { Set($0.triggers) } ?? [])
             .environment(\.activeSupplementalArrows, currentStep?.supplementalArrows ?? [])

@@ -26,6 +26,54 @@ public struct TutorialActions {
     }
 }
 
+/// Standard Skip / Next button row for use inside ``TutorialStep/cardContent``.
+///
+/// Matches the default button styling from ``DefaultTutorialOverlay`` with a
+/// fade-in entrance animation.
+///
+/// ```swift
+/// TutorialStep(
+///     title: "My Step",
+///     body: "",
+///     cardContent: { actions in
+///         AnyView(TutorialNextSkipButtons(actions: actions))
+///     }
+/// )
+/// ```
+public struct TutorialNextSkipButtons: View {
+    public let actions: TutorialActions
+    @State private var appeared = false
+
+    public init(actions: TutorialActions) {
+        self.actions = actions
+    }
+
+    public var body: some View {
+        HStack(spacing: 16) {
+            Button("Skip") {
+                actions.dismiss()
+            }
+            .font(.system(size: 14, weight: .medium))
+            .foregroundColor(Color.white.opacity(0.7))
+
+            Button("Next") {
+                actions.advance()
+            }
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(.black)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.white)
+            .clipShape(Capsule())
+            .accessibilityIdentifier("TutorialNextButton")
+        }
+        .offset(y: appeared ? 0 : 8)
+        .opacity(appeared ? 1 : 0)
+        .animation(.easeOut(duration: 0.4).delay(0.15), value: appeared)
+        .onAppear { appeared = true }
+    }
+}
+
 /// A single step in a tutorial sequence.
 ///
 /// Each step describes what to show (title, body), which arrows to draw,
@@ -64,6 +112,13 @@ public struct TutorialStep {
     /// When set, replaces the default body text and navigation buttons in the card.
     /// The closure receives advance/dismiss actions so custom content can navigate the tutorial.
     public var cardContent: ((TutorialActions) -> AnyView)?
+    /// When set, overrides automatic card placement with a fixed center expressed as a
+    /// fraction of the container size (e.g. `CGSize(width: 0.5, height: 0.25)` places the
+    /// card at 50% x, 25% y).
+    public var position: CGSize?
+    /// Optional landscape-specific override for ``position``. When the container is wider
+    /// than it is tall and this value is set, it is used instead of ``position``.
+    public var landscapePosition: CGSize?
 
     public init(
         title: String,
@@ -74,7 +129,9 @@ public struct TutorialStep {
         triggers: [String] = [],
         tags: Set<String> = [],
         centered: Bool = false,
-        cardContent: ((TutorialActions) -> AnyView)? = nil
+        cardContent: ((TutorialActions) -> AnyView)? = nil,
+        position: CGSize? = nil,
+        landscapePosition: CGSize? = nil,
     ) {
         self.title = title
         self.body = body
@@ -85,5 +142,20 @@ public struct TutorialStep {
         self.tags = tags
         self.centered = centered
         self.cardContent = cardContent
+        self.position = position
+        self.landscapePosition = landscapePosition
+    }
+
+    /// Convenience `cardContent` value that shows only the standard Next and Skip buttons.
+    ///
+    /// ```swift
+    /// TutorialStep(
+    ///     title: "My Step",
+    ///     body: "",
+    ///     cardContent: TutorialStep.nextSkipContent
+    /// )
+    /// ```
+    public static let nextSkipContent: (TutorialActions) -> AnyView = { actions in
+        AnyView(TutorialNextSkipButtons(actions: actions))
     }
 }

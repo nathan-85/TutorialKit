@@ -54,6 +54,22 @@ private struct TutorialBlurModifier: ViewModifier {
     }
 }
 
+// MARK: - Tutorial Active
+
+private struct IsTutorialActiveKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// Whether a tutorial is currently being presented.
+    /// Set at the root of your view hierarchy by `.tutorial()`; read by views
+    /// that need to disable interaction during tutorials.
+    public var isTutorialActive: Bool {
+        get { self[IsTutorialActiveKey.self] }
+        set { self[IsTutorialActiveKey.self] = newValue }
+    }
+}
+
 // MARK: - Tutorial Triggers
 
 private struct ActiveTutorialTriggersKey: EnvironmentKey {
