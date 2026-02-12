@@ -29,6 +29,7 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
     @Binding var stepIndex: Int
     let frames: [TutorialElement: CGRect]
     let dismiss: () -> Void
+    @Environment(\.tutorialDimmingStyle) private var dimmingStyle
 
     @State private var cardSize = CGSize(width: 280, height: 140)
 
@@ -72,8 +73,8 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
             )
 
             ZStack {
-                // No global dimming layer; app teams can control focus using `.tutorialBlur(...)`.
-                Color.clear
+                dimmingStyle.color
+                    .opacity(dimmingStyle.opacity)
                     .ignoresSafeArea()
 
                 TutorialArrowLayer(
@@ -119,7 +120,7 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
     private func cardView(for step: TutorialStep) -> AnyView {
         let actions = TutorialActions(advance: advance, dismiss: finish)
 
-        var card = AnyView(TutorialCard(title: step.title, centered: step.centered) {
+        let card = AnyView(TutorialCard(title: step.title, centered: step.centered) {
             if let customContent = step.cardContent {
                 customContent(actions)
             } else {

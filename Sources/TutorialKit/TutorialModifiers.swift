@@ -23,6 +23,50 @@ extension View {
     }
 }
 
+// MARK: - Tutorial Dimming
+
+/// Configures the global dimming layer shown behind tutorial overlays.
+public struct TutorialDimmingStyle {
+    public let color: Color
+    public let opacity: Double
+
+    public init(color: Color = .black, opacity: Double) {
+        self.color = color
+        self.opacity = min(max(opacity, 0), 1)
+    }
+
+    public static let none = TutorialDimmingStyle(opacity: 0)
+    public static let standard = TutorialDimmingStyle(opacity: 0.35)
+}
+
+private struct TutorialDimmingStyleKey: EnvironmentKey {
+    static let defaultValue: TutorialDimmingStyle = .standard
+}
+
+extension EnvironmentValues {
+    /// Global dimming style used by tutorial overlays.
+    public var tutorialDimmingStyle: TutorialDimmingStyle {
+        get { self[TutorialDimmingStyleKey.self] }
+        set { self[TutorialDimmingStyleKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Sets the global dimming layer shown behind tutorial overlays.
+    ///
+    /// - Parameters:
+    ///   - opacity: Dimming opacity in `[0...1]`.
+    ///   - color: Dimming color. Defaults to `.black`.
+    public func tutorialDimming(_ opacity: Double, color: Color = .black) -> some View {
+        environment(\.tutorialDimmingStyle, TutorialDimmingStyle(color: color, opacity: opacity))
+    }
+
+    /// Sets the global dimming layer shown behind tutorial overlays.
+    public func tutorialDimming(_ style: TutorialDimmingStyle) -> some View {
+        environment(\.tutorialDimmingStyle, style)
+    }
+}
+
 // MARK: - Tutorial Blur
 
 private struct ActiveTutorialBlurTargetsKey: EnvironmentKey {

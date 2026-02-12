@@ -44,15 +44,18 @@ public struct TutorialCard<Content: View>: View {
             }
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 14)
-        .frame(minWidth: 0, maxWidth: title.isEmpty ? nil : (centered ? 320 : 280), alignment: centered ? .center : .leading)
+        .padding(.vertical, 16)
+        .frame(minWidth: 0, maxWidth: title.isEmpty ? nil : (centered ? 340 : 300), alignment: centered ? .center : .leading)
         .fixedSize(horizontal: title.isEmpty, vertical: false)
-        .background(Color(red: 0.1, green: 0.11, blue: 0.14))
-        .mask(
+        .background(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(.white)
-                .blur(radius: 4)
+                .fill(Color(red: 0.08, green: 0.09, blue: 0.12).opacity(0.96))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.55), radius: 26, x: 0, y: 14)
         .accessibilityIdentifier("TutorialCard")
     }
 }
