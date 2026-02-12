@@ -76,6 +76,7 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                     isLandscape: container.width > container.height,
                     stepIndex: stepIndex
                 )
+                .id(stepIndex)
 
                 cardView(for: step)
                     .background(

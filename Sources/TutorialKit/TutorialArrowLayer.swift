@@ -129,11 +129,8 @@ public struct TutorialArrowLayer: View {
             }
         }
         .onAppear {
-            animateArrowsIn(after: 0.35)
-        }
-        .onChange(of: stepIndex) { _ in
             visibleCount = 0
-            animateArrowsIn(after: 0.4)
+            animateArrowsIn(after: 0.35)
         }
     }
 
