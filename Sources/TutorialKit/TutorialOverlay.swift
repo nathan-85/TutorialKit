@@ -83,14 +83,15 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
     let onComplete: (() -> Void)?
 
     @State private var stepIndex = 0
+    @State private var resolvedSteps: [Overlay.Step] = Overlay.steps
     @State private var frames: [TutorialElement: CGRect] = [:]
+    @State private var lastCapturedFrames: [TutorialElement: CGRect] = [:]
     @StateObject private var supplementalFrameStore = TutorialSupplementalFrameStore()
     @State private var overlayWindowController = TutorialOverlayWindowController()
 
     private var currentStep: Overlay.Step? {
-        let steps = Overlay.steps
-        guard isPresented, stepIndex >= 0, stepIndex < steps.count else { return nil }
-        return steps[stepIndex]
+        guard isPresented, stepIndex >= 0, stepIndex < resolvedSteps.count else { return nil }
+        return resolvedSteps[stepIndex]
     }
 
     func body(content: Content) -> some View {
@@ -102,6 +103,8 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
             .environment(\.supplementalFrameStore, supplementalFrameStore)
             .environment(\.tutorialAdvanceAction, isPresented ? { advance() } : nil)
             .onPreferenceChange(TutorialFramePreferenceKey.self) { newValue in
+                guard !frameDictionariesApproximatelyEqual(lastCapturedFrames, newValue) else { return }
+                lastCapturedFrames = newValue
                 frames = newValue
             }
             .overlay {
@@ -115,9 +118,11 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
             }
             .onChange(of: isPresented) { newValue in
                 if newValue {
+                    resolvedSteps = Overlay.steps
                     stepIndex = 0
                     supplementalFrameStore.isFrozen = false
                     supplementalFrameStore.frames = [:]
+                    updateOverlayWindow()
                 } else {
                     overlayWindowController.hide()
                     supplementalFrameStore.isFrozen = false
@@ -126,15 +131,28 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
                 }
             }
             .onChange(of: stepIndex) { _ in
+                clampStepIndexIfNeeded()
                 supplementalFrameStore.isFrozen = false
                 supplementalFrameStore.frames = [:]
                 updateOverlayWindow()
             }
+            .onAppear {
+                clampStepIndexIfNeeded()
+                if isPresented {
+                    updateOverlayWindow()
+                }
+            }
+            .onDisappear {
+                overlayWindowController.hide()
+            }
     }
 
     private func advance() {
-        let steps = Overlay.steps
-        if stepIndex < steps.count - 1 {
+        guard !resolvedSteps.isEmpty else {
+            isPresented = false
+            return
+        }
+        if stepIndex < resolvedSteps.count - 1 {
             stepIndex += 1
         } else {
             isPresented = false
@@ -148,5 +166,38 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
         } else {
             overlayWindowController.update(arrows: arrows, frameStore: supplementalFrameStore)
         }
+    }
+
+    private func clampStepIndexIfNeeded() {
+        guard !resolvedSteps.isEmpty else {
+            stepIndex = 0
+            return
+        }
+        if stepIndex < 0 {
+            stepIndex = 0
+        } else if stepIndex >= resolvedSteps.count {
+            stepIndex = resolvedSteps.count - 1
+        }
+    }
+
+    private func frameDictionariesApproximatelyEqual(
+        _ lhs: [TutorialElement: CGRect],
+        _ rhs: [TutorialElement: CGRect],
+        tolerance: CGFloat = 0.5
+    ) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        for (key, leftRect) in lhs {
+            guard let rightRect = rhs[key], rectsApproximatelyEqual(leftRect, rightRect, tolerance: tolerance) else {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func rectsApproximatelyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat) -> Bool {
+        abs(lhs.minX - rhs.minX) <= tolerance &&
+        abs(lhs.minY - rhs.minY) <= tolerance &&
+        abs(lhs.width - rhs.width) <= tolerance &&
+        abs(lhs.height - rhs.height) <= tolerance
     }
 }

@@ -49,6 +49,10 @@ final class TutorialOverlayWindowController {
     }
 
     func update(arrows: [TutorialArrow], frameStore: TutorialSupplementalFrameStore) {
+        guard !arrows.isEmpty else {
+            hide()
+            return
+        }
         guard let window = window,
               let hc = window.rootViewController as? UIHostingController<SupplementalArrowOverlayView>
         else {
@@ -80,7 +84,7 @@ struct SupplementalArrowOverlayView: View {
     let arrows: [TutorialArrow]
     @ObservedObject var frameStore: TutorialSupplementalFrameStore
     @State private var visibleArrows = 0
-    @State private var arrowAnimationId = UUID()
+    @State private var animationTask: Task<Void, Never>?
 
     var body: some View {
         GeometryReader { proxy in
@@ -152,12 +156,25 @@ struct SupplementalArrowOverlayView: View {
         }
         .ignoresSafeArea()
         .allowsHitTesting(false)
-        .onAppear { animateArrowsIn() }
-        .onChange(of: frameStore.frames.count) { _ in
-            // Frames arrived after the view appeared — re-trigger animation
-            if visibleArrows == 0 {
-                animateArrowsIn()
+        .onAppear {
+            restartAnimation(baseDelay: 0.5, total: resolvedArrowCount)
+        }
+        .onChange(of: arrowsSignature) { _ in
+            restartAnimation(baseDelay: 0.25, total: resolvedArrowCount)
+        }
+        .onChange(of: frameStore.frames) { _ in
+            let count = resolvedArrowCount
+            if count == 0 {
+                animationTask?.cancel()
+                animationTask = nil
+                visibleArrows = 0
+            } else if count > visibleArrows || visibleArrows == 0 {
+                restartAnimation(baseDelay: 0.2, total: count)
             }
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
         }
     }
 
@@ -166,7 +183,7 @@ struct SupplementalArrowOverlayView: View {
         for arrow in arrows {
             guard let targetFrame = frameStore.frames[arrow.element] else { continue }
             let anchorPoint = arrow.resolvedAnchorPoint(in: targetFrame, isLandscape: isLandscape)
-            let labelSize = estimatedLabelSize(for: arrow.element.label)
+            let labelSize = TutorialArrowLayer.estimatedLabelSize(for: arrow.element.label)
             let labelCenter = arrow.labelCenter(
                 anchorPoint: anchorPoint,
                 labelSize: labelSize,
@@ -183,29 +200,43 @@ struct SupplementalArrowOverlayView: View {
         return labels
     }
 
-    private func animateArrowsIn() {
-        let id = UUID()
-        arrowAnimationId = id
-        for i in 0..<arrows.count {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5 + Double(i) * 0.15) {
-                guard arrowAnimationId == id else { return }
+    private var arrowsSignature: String {
+        arrows.map(\.element.id).joined(separator: "|")
+    }
+
+    private var resolvedArrowCount: Int {
+        arrows.reduce(into: 0) { count, arrow in
+            if frameStore.frames[arrow.element] != nil {
+                count += 1
+            }
+        }
+    }
+
+    private func restartAnimation(baseDelay: Double, total: Int) {
+        animationTask?.cancel()
+        visibleArrows = 0
+        guard total > 0 else { return }
+
+        animationTask = Task { @MainActor in
+            var previousDelay = 0.0
+            for i in 0..<total {
+                if Task.isCancelled { return }
+                let nextDelay = baseDelay + Double(i) * 0.15
+                let increment = max(nextDelay - previousDelay, 0)
+                previousDelay = nextDelay
+                let nanoseconds = UInt64(increment * 1_000_000_000)
+                if nanoseconds > 0 {
+                    do {
+                        try await Task.sleep(nanoseconds: nanoseconds)
+                    } catch {
+                        return
+                    }
+                }
+                if Task.isCancelled { return }
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                     visibleArrows = i + 1
                 }
             }
         }
-    }
-
-    private func estimatedLabelSize(for text: String) -> CGSize {
-        let font = UIFont.systemFont(ofSize: 13, weight: .medium)
-        let size = (text as NSString).boundingRect(
-            with: CGSize(width: CGFloat.greatestFiniteMagnitude, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            attributes: [.font: font],
-            context: nil
-        ).size
-        let hPad: CGFloat = 3 * 2
-        let vPad: CGFloat = 2 * 2
-        return CGSize(width: ceil(size.width) + hPad, height: ceil(size.height) + vPad)
     }
 }

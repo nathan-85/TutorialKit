@@ -42,7 +42,7 @@ public struct TutorialActions {
 /// ```
 public struct TutorialNextSkipButtons: View {
     public let actions: TutorialActions
-    @State private var appeared = false
+    @State private var isVisible = false
 
     public init(actions: TutorialActions) {
         self.actions = actions
@@ -67,10 +67,18 @@ public struct TutorialNextSkipButtons: View {
             .clipShape(Capsule())
             .accessibilityIdentifier("TutorialNextButton")
         }
-        .offset(y: appeared ? 0 : 8)
-        .opacity(appeared ? 1 : 0)
-        .animation(.easeOut(duration: 0.4).delay(0.15), value: appeared)
-        .onAppear { appeared = true }
+        .offset(y: isVisible ? 0 : 8)
+        .opacity(isVisible ? 1 : 0)
+        .onAppear {
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.85)) {
+                isVisible = true
+            }
+        }
+        .onDisappear {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isVisible = false
+            }
+        }
     }
 }
 

@@ -94,7 +94,9 @@ private struct TutorialBlurModifier: ViewModifier {
     @Environment(\.activeTutorialBlurTargets) private var activeTargets
 
     func body(content: Content) -> some View {
-        content.blur(radius: activeTargets.contains(target) ? 20 : 0)
+        content
+            .blur(radius: activeTargets.contains(target) ? 14 : 0)
+            .animation(.easeInOut(duration: 0.2), value: activeTargets.contains(target))
     }
 }
 
@@ -165,11 +167,28 @@ private struct TutorialActionModifier: ViewModifier {
     let id: String
     let action: (_ isActive: Bool) -> Void
     @Environment(\.activeTutorialTriggers) private var triggers
+    @State private var lastActiveState: Bool?
 
     func body(content: Content) -> some View {
-        content.onChange(of: triggers.contains(id)) { isActive in
-            action(isActive)
-        }
+        content
+            .onAppear {
+                applyIfNeeded(isActive: triggers.contains(id))
+            }
+            .onChange(of: triggers.contains(id)) { isActive in
+                applyIfNeeded(isActive: isActive)
+            }
+            .onDisappear {
+                if lastActiveState == true {
+                    action(false)
+                }
+                lastActiveState = nil
+            }
+    }
+
+    private func applyIfNeeded(isActive: Bool) {
+        guard lastActiveState != isActive else { return }
+        lastActiveState = isActive
+        action(isActive)
     }
 }
 
@@ -178,17 +197,16 @@ private struct TutorialTriggerModifier: ViewModifier {
     @Binding var isPresented: Bool
     @Environment(\.activeTutorialTriggers) private var triggers
     @Environment(\.tutorialAdvanceAction) private var advanceAction
+    @State private var pendingPresentation: DispatchWorkItem?
+    @State private var triggerIsActive = false
 
     func body(content: Content) -> some View {
         content
+            .onAppear {
+                handleTriggerStateChange(isActive: triggers.contains(id))
+            }
             .onChange(of: triggers.contains(id)) { isActive in
-                if isActive {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        isPresented = true
-                    }
-                } else {
-                    isPresented = false
-                }
+                handleTriggerStateChange(isActive: isActive)
             }
             .onChange(of: isPresented) { presented in
                 // When the user dismisses a triggered popover/sheet directly
@@ -199,6 +217,36 @@ private struct TutorialTriggerModifier: ViewModifier {
                     advanceAction?()
                 }
             }
+            .onDisappear {
+                cancelPendingPresentation()
+            }
+    }
+
+    private func handleTriggerStateChange(isActive: Bool) {
+        triggerIsActive = isActive
+        cancelPendingPresentation()
+
+        if isActive {
+            let workItem = DispatchWorkItem {
+                guard triggerIsActive else { return }
+                isPresented = true
+            }
+            pendingPresentation = workItem
+            DispatchQueue.main.async(execute: workItem)
+        } else {
+            // Step advanced away from this trigger: dismiss immediately so
+            // the tutorial can continue without waiting for popover animation.
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) {
+                isPresented = false
+            }
+        }
+    }
+
+    private func cancelPendingPresentation() {
+        pendingPresentation?.cancel()
+        pendingPresentation = nil
     }
 }
 
@@ -268,7 +316,9 @@ private struct SupplementalTutorialModifier: ViewModifier {
                 guard let store = frameStore, !store.isFrozen, !arrows.isEmpty else { return }
                 let targetElements = Set(arrows.map(\.element))
                 let relevant = newValue.filter { targetElements.contains($0.key) }
-                store.frames.merge(relevant) { _, new in new }
+                if !framesApproximatelyEqual(store.frames, relevant) {
+                    store.frames = relevant
+                }
             }
             .onAppear {
                 frameStore?.isFrozen = false
@@ -282,6 +332,24 @@ private struct SupplementalTutorialModifier: ViewModifier {
                     frameStore?.frames = [:]
                 }
             )
+    }
+
+    private func framesApproximatelyEqual(
+        _ lhs: [TutorialElement: CGRect],
+        _ rhs: [TutorialElement: CGRect],
+        tolerance: CGFloat = 0.5
+    ) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+        for (element, leftRect) in lhs {
+            guard let rightRect = rhs[element] else { return false }
+            guard abs(leftRect.minX - rightRect.minX) <= tolerance,
+                  abs(leftRect.minY - rightRect.minY) <= tolerance,
+                  abs(leftRect.width - rightRect.width) <= tolerance,
+                  abs(leftRect.height - rightRect.height) <= tolerance else {
+                return false
+            }
+        }
+        return true
     }
 }
 

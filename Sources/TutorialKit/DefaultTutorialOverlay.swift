@@ -32,6 +32,10 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
     @Environment(\.tutorialDimmingStyle) private var dimmingStyle
 
     @State private var cardSize = CGSize(width: 280, height: 140)
+    @State private var lastRenderedStepIndex = 0
+    @State private var previousStepIndex: Int?
+    @State private var clearPreviousTask: Task<Void, Never>?
+    @Namespace private var cardMorphNamespace
 
     public static var steps: [TutorialStep] { Provider.steps }
 
@@ -43,6 +47,7 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
 
     public var body: some View {
         GeometryReader { proxy in
+            let allSteps = Self.steps
             let globalOrigin = proxy.frame(in: .global).origin
             let container = CGRect(origin: .zero, size: proxy.size)
             let localFrames = frames.mapValues { rect in
@@ -53,64 +58,100 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                     height: rect.height
                 )
             }
-            let step = currentStep
-            let isLandscape = container.width > container.height
-            let resolvedPosition = isLandscape ? (step.landscapePosition ?? step.position) : step.position
-            let cardCenter: CGPoint = if let pos = resolvedPosition {
-                CGPoint(x: container.width * pos.width, y: container.height * pos.height)
-            } else {
-                TutorialCardPlacement.position(
-                    for: step.arrows,
-                    in: localFrames,
-                    container: container
-                )
-            }
-            let cardRect = CGRect(
-                x: cardCenter.x - cardSize.width / 2,
-                y: cardCenter.y - cardSize.height / 2,
-                width: cardSize.width,
-                height: cardSize.height
-            )
-
-            ZStack {
-                dimmingStyle.color
-                    .opacity(dimmingStyle.opacity)
+            if allSteps.isEmpty {
+                Color.clear
                     .ignoresSafeArea()
-
-                TutorialArrowLayer(
-                    arrows: step.arrows,
-                    frames: localFrames,
-                    cardRect: cardRect,
+                    .onAppear { finish() }
+            } else {
+                let clampedStepIndex = clampIndex(stepIndex, in: allSteps)
+                let step = allSteps[clampedStepIndex]
+                let previousStep = previousStepIndex.flatMap { index -> TutorialStep? in
+                    guard index >= 0 && index < allSteps.count else { return nil }
+                    return allSteps[index]
+                }
+                let isLandscape = container.width > container.height
+                let cardCenter = resolvedCardCenter(
+                    for: step,
                     isLandscape: isLandscape,
-                    stepIndex: stepIndex
+                    container: container,
+                    localFrames: localFrames
                 )
-                .id(stepIndex)
+                let cardRect = CGRect(
+                    x: cardCenter.x - cardSize.width / 2,
+                    y: cardCenter.y - cardSize.height / 2,
+                    width: cardSize.width,
+                    height: cardSize.height
+                )
 
-                cardView(for: step)
-                    .background(
-                        GeometryReader { inner in
-                            Color.clear.preference(key: TutorialCardSizeKey.self, value: inner.size)
-                        }
+                ZStack {
+                    dimmingStyle.color
+                        .opacity(dimmingStyle.opacity)
+                        .ignoresSafeArea()
+
+                    TutorialArrowLayer(
+                        arrows: step.arrows,
+                        frames: localFrames,
+                        cardRect: cardRect,
+                        isLandscape: isLandscape,
+                        stepIndex: clampedStepIndex
                     )
-                    .position(cardCenter)
-                    .animation(.spring(response: 0.45, dampingFraction: 0.85), value: stepIndex)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture {}
-            .onAppear {
-                stepIndex = min(stepIndex, Self.steps.count - 1)
-            }
-            .onPreferenceChange(TutorialCardSizeKey.self) { newSize in
-                if newSize != .zero {
-                    cardSize = newSize
+
+                    ZStack {
+                        if let previousStep {
+                            let previousCenter = resolvedCardCenter(
+                                for: previousStep,
+                                isLandscape: isLandscape,
+                                container: container,
+                                localFrames: localFrames
+                            )
+                            cardView(for: previousStep)
+                                .position(previousCenter)
+                                .matchedGeometryEffect(id: "tutorial-card", in: cardMorphNamespace, isSource: true)
+                                .opacity(0.001)
+                                .allowsHitTesting(false)
+                        }
+
+                        cardView(for: step)
+                            .background(
+                                GeometryReader { inner in
+                                    Color.clear.preference(key: TutorialCardSizeKey.self, value: inner.size)
+                                }
+                            )
+                            .position(cardCenter)
+                            .matchedGeometryEffect(id: "tutorial-card", in: cardMorphNamespace, isSource: false)
+                            .transition(.opacity)
+                    }
+                    .animation(.spring(response: 0.45, dampingFraction: 0.85), value: clampedStepIndex)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {}
+                .onAppear {
+                    let clamped = min(stepIndex, allSteps.count - 1)
+                    stepIndex = clamped
+                    lastRenderedStepIndex = clamped
+                }
+                .onChange(of: stepIndex) { newValue in
+                    let clamped = clampIndex(newValue, in: allSteps)
+                    guard clamped != lastRenderedStepIndex else { return }
+                    previousStepIndex = lastRenderedStepIndex
+                    lastRenderedStepIndex = clamped
+                    schedulePreviousCardCleanup()
+                }
+                .onPreferenceChange(TutorialCardSizeKey.self) { newSize in
+                    if newSize != .zero && !sizesApproximatelyEqual(cardSize, newSize) {
+                        cardSize = newSize
+                    }
+                }
+                .onDisappear {
+                    clearPreviousTask?.cancel()
+                    clearPreviousTask = nil
                 }
             }
         }
         .transition(.opacity)
     }
 
-    private var currentStep: TutorialStep {
-        let steps = Self.steps
+    private func currentStep(in steps: [TutorialStep]) -> TutorialStep {
         if stepIndex >= 0 && stepIndex < steps.count {
             return steps[stepIndex]
         }
@@ -167,5 +208,59 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
         withAnimation(.easeInOut(duration: 0.3)) {
             dismiss()
         }
+    }
+
+    private func schedulePreviousCardCleanup() {
+        clearPreviousTask?.cancel()
+        clearPreviousTask = Task { @MainActor in
+            do {
+                try await Task.sleep(nanoseconds: 300_000_000)
+            } catch {
+                return
+            }
+            previousStepIndex = nil
+        }
+    }
+
+    private func clampIndex(_ index: Int, in steps: [TutorialStep]) -> Int {
+        guard !steps.isEmpty else { return 0 }
+        return min(max(index, 0), steps.count - 1)
+    }
+
+    private func resolvedCardCenter(
+        for step: TutorialStep,
+        isLandscape: Bool,
+        container: CGRect,
+        localFrames: [TutorialElement: CGRect]
+    ) -> CGPoint {
+        let resolvedPosition = isLandscape ? (step.landscapePosition ?? step.position) : step.position
+        let rawCenter: CGPoint = if let pos = resolvedPosition {
+            CGPoint(x: container.width * pos.width, y: container.height * pos.height)
+        } else {
+            TutorialCardPlacement.position(
+                for: step.arrows,
+                in: localFrames,
+                container: container
+            )
+        }
+        return clampedCardCenter(rawCenter, in: container)
+    }
+
+    private func clampedCardCenter(_ center: CGPoint, in container: CGRect) -> CGPoint {
+        let insetX = max(cardSize.width / 2 + 8, 8)
+        let insetY = max(cardSize.height / 2 + 8, 8)
+        let minX = container.minX + insetX
+        let maxX = container.maxX - insetX
+        let minY = container.minY + insetY
+        let maxY = container.maxY - insetY
+        return CGPoint(
+            x: min(max(center.x, minX), maxX),
+            y: min(max(center.y, minY), maxY)
+        )
+    }
+
+    private func sizesApproximatelyEqual(_ lhs: CGSize, _ rhs: CGSize, tolerance: CGFloat = 0.5) -> Bool {
+        abs(lhs.width - rhs.width) <= tolerance &&
+        abs(lhs.height - rhs.height) <= tolerance
     }
 }

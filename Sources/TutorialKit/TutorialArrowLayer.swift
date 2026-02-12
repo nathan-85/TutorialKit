@@ -25,7 +25,7 @@ public struct TutorialArrowLayer: View {
     let secondaryStrokeWidth: CGFloat
 
     @State private var visibleCount = 0
-    @State private var animationId = UUID()
+    @State private var animationTask: Task<Void, Never>?
 
     public init(
         arrows: [TutorialArrow],
@@ -46,7 +46,13 @@ public struct TutorialArrowLayer: View {
     }
 
     public var body: some View {
+        let primaryResolved = {
+            guard let firstArrow = arrows.first else { return false }
+            return frames[firstArrow.element] != nil
+        }()
         let secondaryLabels = resolvedSecondaryLabels()
+        let secondaryStartIndex = primaryResolved ? 2 : 1
+        let resolvedArrowCount = (primaryResolved ? 1 : 0) + secondaryLabels.count
 
         Group {
             // Primary arrow: card → first element
@@ -69,7 +75,7 @@ public struct TutorialArrowLayer: View {
 
             // Secondary arrows: label + short arrow each (collision-resolved)
             ForEach(Array(secondaryLabels.enumerated()), id: \.offset) { index, label in
-                let visible = visibleCount >= index + 2
+                let visible = visibleCount >= index + secondaryStartIndex
 
                 if let iconName = label.arrow.icon {
                     // Icon at anchor point, label at its normal position
@@ -129,18 +135,48 @@ public struct TutorialArrowLayer: View {
             }
         }
         .onAppear {
-            visibleCount = 0
-            animateArrowsIn(after: 0.35)
+            restartArrowAnimation(after: 0.35, total: resolvedArrowCount)
+        }
+        .onChange(of: stepIndex) { _ in
+            restartArrowAnimation(after: 0.2, total: resolvedArrowCount)
+        }
+        .onChange(of: resolvedArrowCount) { newCount in
+            if newCount > visibleCount || (visibleCount == 0 && newCount > 0) {
+                restartArrowAnimation(after: 0.05, total: newCount)
+            } else if newCount == 0 {
+                animationTask?.cancel()
+                animationTask = nil
+                visibleCount = 0
+            }
+        }
+        .onDisappear {
+            animationTask?.cancel()
+            animationTask = nil
         }
     }
 
-    private func animateArrowsIn(after baseDelay: Double) {
-        let id = UUID()
-        animationId = id
-        let total = arrows.count
-        for i in 0..<total {
-            DispatchQueue.main.asyncAfter(deadline: .now() + baseDelay + Double(i) * 0.05) {
-                guard animationId == id else { return }
+    private func restartArrowAnimation(after baseDelay: Double, total: Int) {
+        animationTask?.cancel()
+        visibleCount = 0
+
+        guard total > 0 else { return }
+
+        animationTask = Task { @MainActor in
+            var previousDelay = 0.0
+            for i in 0..<total {
+                if Task.isCancelled { return }
+                let nextDelay = baseDelay + Double(i) * 0.05
+                let increment = max(nextDelay - previousDelay, 0)
+                previousDelay = nextDelay
+                let nanoseconds = UInt64(increment * 1_000_000_000)
+                if nanoseconds > 0 {
+                    do {
+                        try await Task.sleep(nanoseconds: nanoseconds)
+                    } catch {
+                        return
+                    }
+                }
+                if Task.isCancelled { return }
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                     visibleCount = i + 1
                 }
