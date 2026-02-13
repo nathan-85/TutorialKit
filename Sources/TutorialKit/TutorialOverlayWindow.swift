@@ -109,11 +109,11 @@ struct SupplementalArrowOverlayView: View {
                         .multilineTextAlignment(label.arrow.textAlignment.resolved(isLandscape))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
-                        .background(.ultraThinMaterial)
-                        .mask(
+                        .background(label.arrow.labelBackgroundStyle)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white)
-                                .blur(radius: 5)
+                                .stroke(Color.white.opacity(0.9), lineWidth: 0.8)
                         )
                         .scaleEffect(visible ? 1 : 0.3)
                         .opacity(visible ? 1 : 0)
@@ -142,11 +142,11 @@ struct SupplementalArrowOverlayView: View {
                         .multilineTextAlignment(label.arrow.textAlignment.resolved(isLandscape))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 4)
-                        .background(.ultraThinMaterial)
-                        .mask(
+                        .background(label.arrow.labelBackgroundStyle)
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white)
-                                .blur(radius: 5)
+                                .stroke(Color.white.opacity(0.9), lineWidth: 0.8)
                         )
                         .scaleEffect(visible ? 1 : 0.3)
                         .opacity(visible ? 1 : 0)

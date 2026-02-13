@@ -41,6 +41,8 @@ public struct TutorialArrow {
     /// Optional SF Symbol name. When set, renders the icon at the anchor point
     /// instead of the arrow line and text label.
     public let icon: String?
+    /// Background style used for the arrow label pill.
+    public let labelBackgroundStyle: AnyShapeStyle
     /// Point offset applied to the resolved anchor position.
     public let anchorOffset: LayoutPair<CGPoint>
 
@@ -55,6 +57,7 @@ public struct TutorialArrow {
         bendStrength: ArrowBendStrength = .medium,
         arrowOpacity: CGFloat = 1.0,
         icon: String? = nil,
+        labelBackgroundStyle: AnyShapeStyle = AnyShapeStyle(.ultraThinMaterial),
         anchorOffset: CGPoint = .zero,         anchorOffsetH: CGPoint? = nil
     ) {
         self.element = element
@@ -79,7 +82,40 @@ public struct TutorialArrow {
         self.bendStrength = bendStrength
         self.arrowOpacity = arrowOpacity
         self.icon = icon
+        self.labelBackgroundStyle = labelBackgroundStyle
         self.anchorOffset = LayoutPair(v: anchorOffset, h: anchorOffsetH ?? anchorOffset)
+    }
+
+    /// Convenience initializer that accepts any concrete `ShapeStyle` without requiring
+    /// callers to wrap it in `AnyShapeStyle`.
+    public init<S: ShapeStyle>(
+        _ element: TutorialElement,
+        anchor: ElementAnchor = .top,          anchorH: ElementAnchor? = nil,
+        fromAnchor: ElementAnchor? = nil,      fromAnchorH: ElementAnchor? = nil,
+        length: CGFloat = 50,                  lengthH: CGFloat? = nil,
+        angle: CGFloat? = nil,                 angleH: CGFloat? = nil,
+        textAlignment: TextAlignment = .center, textAlignmentH: TextAlignment? = nil,
+        bend: ArrowBend = .auto,
+        bendStrength: ArrowBendStrength = .medium,
+        arrowOpacity: CGFloat = 1.0,
+        icon: String? = nil,
+        labelBackgroundStyle: S,
+        anchorOffset: CGPoint = .zero,         anchorOffsetH: CGPoint? = nil
+    ) {
+        self.init(
+            element,
+            anchor: anchor, anchorH: anchorH,
+            fromAnchor: fromAnchor, fromAnchorH: fromAnchorH,
+            length: length, lengthH: lengthH,
+            angle: angle, angleH: angleH,
+            textAlignment: textAlignment, textAlignmentH: textAlignmentH,
+            bend: bend,
+            bendStrength: bendStrength,
+            arrowOpacity: arrowOpacity,
+            icon: icon,
+            labelBackgroundStyle: AnyShapeStyle(labelBackgroundStyle),
+            anchorOffset: anchorOffset, anchorOffsetH: anchorOffsetH
+        )
     }
 
     /// Resolves the anchor point in the given frame, applying ``anchorOffset``.
