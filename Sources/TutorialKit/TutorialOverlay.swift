@@ -103,7 +103,7 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
             .environment(\.supplementalFrameStore, supplementalFrameStore)
             .environment(\.tutorialAdvanceAction, isPresented ? { advance() } : nil)
             .onPreferenceChange(TutorialFramePreferenceKey.self) { newValue in
-                guard !frameDictionariesApproximatelyEqual(lastCapturedFrames, newValue) else { return }
+                guard !tutorialFrameDictionariesApproximatelyEqual(lastCapturedFrames, newValue) else { return }
                 lastCapturedFrames = newValue
                 frames = newValue
             }
@@ -180,24 +180,4 @@ private struct TutorialHostModifier<Overlay: TutorialOverlay>: ViewModifier {
         }
     }
 
-    private func frameDictionariesApproximatelyEqual(
-        _ lhs: [TutorialElement: CGRect],
-        _ rhs: [TutorialElement: CGRect],
-        tolerance: CGFloat = 0.5
-    ) -> Bool {
-        guard lhs.count == rhs.count else { return false }
-        for (key, leftRect) in lhs {
-            guard let rightRect = rhs[key], rectsApproximatelyEqual(leftRect, rightRect, tolerance: tolerance) else {
-                return false
-            }
-        }
-        return true
-    }
-
-    private func rectsApproximatelyEqual(_ lhs: CGRect, _ rhs: CGRect, tolerance: CGFloat) -> Bool {
-        abs(lhs.minX - rhs.minX) <= tolerance &&
-        abs(lhs.minY - rhs.minY) <= tolerance &&
-        abs(lhs.width - rhs.width) <= tolerance &&
-        abs(lhs.height - rhs.height) <= tolerance
-    }
 }

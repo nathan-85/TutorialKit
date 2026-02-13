@@ -316,7 +316,7 @@ private struct SupplementalTutorialModifier: ViewModifier {
                 guard let store = frameStore, !store.isFrozen, !arrows.isEmpty else { return }
                 let targetElements = Set(arrows.map(\.element))
                 let relevant = newValue.filter { targetElements.contains($0.key) }
-                if !framesApproximatelyEqual(store.frames, relevant) {
+                if !tutorialFrameDictionariesApproximatelyEqual(store.frames, relevant) {
                     store.frames = relevant
                 }
             }
@@ -334,23 +334,6 @@ private struct SupplementalTutorialModifier: ViewModifier {
             )
     }
 
-    private func framesApproximatelyEqual(
-        _ lhs: [TutorialElement: CGRect],
-        _ rhs: [TutorialElement: CGRect],
-        tolerance: CGFloat = 0.5
-    ) -> Bool {
-        guard lhs.count == rhs.count else { return false }
-        for (element, leftRect) in lhs {
-            guard let rightRect = rhs[element] else { return false }
-            guard abs(leftRect.minX - rightRect.minX) <= tolerance,
-                  abs(leftRect.minY - rightRect.minY) <= tolerance,
-                  abs(leftRect.width - rightRect.width) <= tolerance,
-                  abs(leftRect.height - rightRect.height) <= tolerance else {
-                return false
-            }
-        }
-        return true
-    }
 }
 
 /// Bridges UIKit's `viewWillDisappear` into SwiftUI so we can react at the

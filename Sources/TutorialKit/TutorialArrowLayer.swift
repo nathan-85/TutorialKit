@@ -87,21 +87,23 @@ public struct TutorialArrowLayer: View {
                         .opacity(visible ? 1 : 0)
                         .position(label.anchorPoint)
 
-                    Text(label.arrow.element.label)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(label.arrow.textAlignment.resolved(isLandscape))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 4)
-                        .background(.ultraThinMaterial)
-                        .mask(
-                            RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white)
-                                .blur(radius: 5)
-                        )
-                        .scaleEffect(visible ? 1 : 0.3)
-                        .opacity(visible ? 1 : 0)
-                        .position(label.labelCenter)
+                    if !label.arrow.element.label.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text(label.arrow.element.label)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.white)
+                            .multilineTextAlignment(label.arrow.textAlignment.resolved(isLandscape))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(.ultraThinMaterial)
+                            .mask(
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(.white)
+                                    .blur(radius: 5)
+                            )
+                            .scaleEffect(visible ? 1 : 0.3)
+                            .opacity(visible ? 1 : 0)
+                            .position(label.labelCenter)
+                    }
                 } else {
                     let arrowStart = label.arrowStart(isLandscape: isLandscape)
 
