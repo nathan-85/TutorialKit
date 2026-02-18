@@ -84,9 +84,19 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                 )
 
                 ZStack {
+                    // Touch-blocking layer — absorbs all touches except over passthrough element frames
+                    let cutouts = step.passthroughElements.compactMap { localFrames[$0] }
+                    Color.clear
+                        .contentShape(
+                            RectWithCutouts(cutouts: cutouts),
+                            eoFill: true
+                        )
+                        .onTapGesture {}
+
                     dimmingStyle.color
                         .opacity(dimmingStyle.opacity)
                         .ignoresSafeArea()
+                        .allowsHitTesting(false)
 
                     TutorialArrowLayer(
                         arrows: step.arrows,
@@ -95,6 +105,7 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                         isLandscape: isLandscape,
                         stepIndex: clampedStepIndex
                     )
+                    .allowsHitTesting(false)
 
                     ZStack {
                         if let previousStep {
@@ -123,8 +134,6 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
                     }
                     .animation(.spring(response: 0.45, dampingFraction: 0.85), value: clampedStepIndex)
                 }
-                .contentShape(Rectangle())
-                .onTapGesture {}
                 .onAppear {
                     let clamped = min(stepIndex, allSteps.count - 1)
                     stepIndex = clamped
@@ -262,5 +271,19 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
     private func sizesApproximatelyEqual(_ lhs: CGSize, _ rhs: CGSize, tolerance: CGFloat = 0.5) -> Bool {
         abs(lhs.width - rhs.width) <= tolerance &&
         abs(lhs.height - rhs.height) <= tolerance
+    }
+}
+
+/// A shape that fills its bounds with rectangular cutouts removed (using even-odd fill).
+private struct RectWithCutouts: Shape {
+    let cutouts: [CGRect]
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        path.addRect(rect)
+        for cutout in cutouts {
+            path.addRect(cutout)
+        }
+        return path
     }
 }

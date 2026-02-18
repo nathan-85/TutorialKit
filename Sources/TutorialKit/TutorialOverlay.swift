@@ -9,6 +9,7 @@ public protocol TutorialStepProviding {
     var blurTargets: TutorialBlurTargets { get }
     var triggers: [String] { get }
     var supplementalArrows: [TutorialArrow] { get }
+    var passthroughElements: Set<TutorialElement> { get }
 }
 
 extension TutorialStep: TutorialStepProviding {}

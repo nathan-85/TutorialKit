@@ -127,6 +127,9 @@ public struct TutorialStep {
     /// Optional landscape-specific override for ``position``. When the container is wider
     /// than it is tall and this value is set, it is used instead of ``position``.
     public var landscapePosition: CGSize?
+    /// Elements whose captured frames should allow touches to pass through the
+    /// tutorial overlay to the content beneath. Everything else remains blocked.
+    public var passthroughElements: Set<TutorialElement>
 
     public init(
         title: String,
@@ -140,6 +143,7 @@ public struct TutorialStep {
         cardContent: ((TutorialActions) -> AnyView)? = nil,
         position: CGSize? = nil,
         landscapePosition: CGSize? = nil,
+        passthroughElements: Set<TutorialElement> = []
     ) {
         self.title = title
         self.body = body
@@ -152,6 +156,7 @@ public struct TutorialStep {
         self.cardContent = cardContent
         self.position = position
         self.landscapePosition = landscapePosition
+        self.passthroughElements = passthroughElements
     }
 
     /// Convenience `cardContent` value that shows only the standard Next and Skip buttons.
