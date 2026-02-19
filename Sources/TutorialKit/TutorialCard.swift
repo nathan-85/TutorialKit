@@ -56,6 +56,7 @@ public struct TutorialCard<Content: View>: View {
                 .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.55), radius: 26, x: 0, y: 14)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("TutorialCard")
     }
 }
