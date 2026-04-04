@@ -56,15 +56,20 @@ public struct TutorialNextSkipButtons: View {
             .font(.system(size: 14, weight: .medium))
             .foregroundColor(Color.white.opacity(0.7))
 
-            Button("Next") {
+            Button {
                 actions.advance()
+            } label: {
+                Text("Next")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.black)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background {
+                        Capsule()
+                            .fill(Color.white)
+                    }
+                    .compositingGroup()
             }
-            .font(.system(size: 14, weight: .semibold))
-            .foregroundColor(.black)
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color.white)
-            .clipShape(Capsule())
             .accessibilityIdentifier("TutorialNextButton")
         }
         .offset(y: isVisible ? 0 : 8)

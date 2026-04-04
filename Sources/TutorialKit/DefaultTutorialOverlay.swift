@@ -189,15 +189,20 @@ public struct DefaultTutorialOverlay<Provider: TutorialStepProvider>: TutorialOv
 
                     Spacer()
 
-                    Button("Next") {
+                    Button {
                         advance()
+                    } label: {
+                        Text("Next")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background {
+                                Capsule()
+                                    .fill(Color.white)
+                            }
+                            .compositingGroup()
                     }
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(Color.white)
-                    .clipShape(Capsule())
                     .accessibilityIdentifier("TutorialNextButton")
                 }
             }
